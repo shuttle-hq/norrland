@@ -1,0 +1,23 @@
+[package]
+name = "norrland"
+description = "Utility macro for implementing traits on sqlx types"
+version = "0.0.1"
+edition = "2021"
+license = "MIT"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+proc-macro2 = "1"
+quote = "1"
+syn = { version = "2", features = ["full"] }
+
+[dev-dependencies]
+sqlx = { version = "0.8", features = ["postgres", "runtime-tokio"] }
+tokio = { version = "1", features = ["full"] }
+testcontainers-modules = { version = "0.11", default-features = false, features = [
+    "postgres",
+] }
+tracing-subscriber = "0.3"
+tracing = "0.1"
