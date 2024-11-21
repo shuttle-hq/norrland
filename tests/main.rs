@@ -55,10 +55,21 @@ impl MyDB {
     // async fn wild(self, _: bool) -> Result<(), sqlx::Error> {
     //     Ok(())
     // }
+    async fn custom_error(self) -> Result<(), E> {
+        Ok(())
+    }
 }
 pub struct A {
     pub b: i32,
     pub c: bool,
+}
+pub enum E {
+    Huh,
+}
+impl From<sqlx::Error> for E {
+    fn from(_value: sqlx::Error) -> Self {
+        Self::Huh
+    }
 }
 
 #[cfg(test)]
