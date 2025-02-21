@@ -34,7 +34,7 @@ pub fn norrland(args: TokenStream, tokens: TokenStream) -> TokenStream {
         .iter()
         .map(|func| {
             TraitItem::Fn(TraitItemFn {
-                attrs: func.attrs.clone(),
+                attrs: Vec::new(), // ignore attributes in trait definition, such as #[tracing::instrument]
                 sig: remove_mut_bindings(func.sig.clone()),
                 default: None,
                 semi_token: Some(Default::default()),

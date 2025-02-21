@@ -13,8 +13,10 @@ impl MyDB {
 
         Ok(())
     }
+    #[tracing::instrument(skip_all)]
     async fn insert_with_internal_trx(self, a: i32) -> Result<(), sqlx::Error> {
         let mut trx = self.begin().await?;
+        tracing::info!(value = a, "inserting value");
         query("INSERT INTO numbers VALUES ($1)")
             .bind(a)
             .execute(trx.as_mut())
