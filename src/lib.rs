@@ -6,8 +6,8 @@ use syn::{
     parse_macro_input, parse_quote,
     punctuated::Punctuated,
     token::{And, Comma, Pub, Trait},
-    FnArg, Ident, ImplItem, ItemImpl, ItemTrait, Pat, Path, Signature, TraitItem, TraitItemFn,
-    Type, TypePath, TypeReference, Visibility,
+    Attribute, FnArg, Ident, ImplItem, ItemImpl, ItemTrait, Pat, Path, Signature, TraitItem,
+    TraitItemFn, Type, TypePath, TypeReference, Visibility,
 };
 
 #[proc_macro_attribute]
@@ -46,11 +46,11 @@ pub fn norrland(args: TokenStream, tokens: TokenStream) -> TokenStream {
             let mut sig = func.sig.clone();
             remove_mut_bindings(&mut sig);
 
+            let mut attrs = func.attrs.clone();
+            filter_norrland_attr_with_ident(&mut attrs, IN_CONNECTION_IMPL);
+
             TraitItem::Fn(TraitItemFn {
-                // Empty vec instead of `func.attrs.clone()` to ignore applying attributes in trait definition.
-                // This prevents things like `#[tracing::instrument]` from breaking it.
-                // TODO: might break other scenarios.
-                attrs: Vec::new(),
+                attrs,
                 sig,
                 default: None,
                 semi_token: Some(Default::default()),
@@ -77,6 +77,7 @@ pub fn norrland(args: TokenStream, tokens: TokenStream) -> TokenStream {
         .map(|&func| {
             let mut modified_func = func.clone();
             modified_func.vis = Visibility::Inherited; // remove `pub`, etc
+            remove_norrland_attr(&mut modified_func.attrs);
 
             modified_func
         })
@@ -88,6 +89,7 @@ pub fn norrland(args: TokenStream, tokens: TokenStream) -> TokenStream {
             let mut modified_func = func.clone();
             remove_mut_bindings(&mut modified_func.sig);
             modified_func.vis = Visibility::Inherited; // remove `pub`, etc
+            filter_norrland_attr_with_ident(&mut modified_func.attrs, IN_CONNECTION_IMPL);
 
             let ident = func.sig.ident.clone();
             let args_to_conn = func
@@ -118,6 +120,7 @@ pub fn norrland(args: TokenStream, tokens: TokenStream) -> TokenStream {
         .map(|&func| {
             let mut modified_func = func.clone();
             remove_mut_bindings(&mut modified_func.sig);
+            filter_norrland_attr_with_ident(&mut modified_func.attrs, IN_CONNECTION_IMPL);
             // change `self` to `&self`
             if let Some(first_arg) = modified_func.sig.inputs.first_mut() {
                 if let FnArg::Receiver(receiver) = first_arg {
@@ -218,4 +221,33 @@ fn remove_mut_bindings(sig: &mut Signature) {
             }
         }
     });
+}
+
+const IN_CONNECTION_IMPL: &str = "connection_impl";
+
+// filter attributes to skip those marked with `#[norrland_attr(ident)]`
+fn filter_norrland_attr_with_ident(attrs: &mut Vec<Attribute>, ident: &str) {
+    let mut skip = false;
+    attrs.retain(|attr| {
+        if skip {
+            skip = false;
+            return false;
+        }
+        let mut ret = true;
+        if attr.path().is_ident("norrland_attr") {
+            attr.parse_nested_meta(|meta| {
+                if meta.path.is_ident(ident) {
+                    skip = true;
+                    ret = false;
+                }
+                Ok(())
+            })
+            .expect("metadata to parse");
+        }
+        ret
+    });
+}
+// remove all `#[norrland_attr(...)]`
+fn remove_norrland_attr(attrs: &mut Vec<Attribute>) {
+    attrs.retain(|attr| !attr.path().is_ident("norrland_attr"));
 }

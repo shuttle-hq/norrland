@@ -13,6 +13,7 @@ impl MyDBTrait for MyDB {
 
         Ok(())
     }
+    #[norrland_attr(connection_impl)]
     #[tracing::instrument(skip_all)]
     pub async fn insert_with_internal_trx(self, a: i32) -> Result<(), sqlx::Error> {
         let mut trx = self.begin().await?;
