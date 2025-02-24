@@ -4,7 +4,7 @@ use norrland::norrland;
 use sqlx::{query, Acquire, Postgres};
 
 #[norrland(Postgres)]
-impl MyDB {
+impl MyDBTrait for MyDB {
     pub async fn select(self, a: i32) -> Result<(), sqlx::Error> {
         query("SELECT num FROM numbers WHERE num = $1")
             .bind(a)
@@ -60,6 +60,7 @@ impl MyDB {
     pub async fn custom_error(self) -> Result<(), E> {
         Ok(())
     }
+    #[allow(unused)]
     pub(crate) async fn public_restricted(self) -> Result<(), sqlx::Error> {
         Ok(())
     }
@@ -87,7 +88,8 @@ impl From<sqlx::Error> for E {
 
 #[cfg(test)]
 mod tests {
-    use super::MyDB;
+    use super::{MyDB, MyDBTrait};
+
     use sqlx::{query, PgPool};
     use testcontainers_modules::{
         postgres::Postgres,
@@ -123,10 +125,11 @@ mod tests {
             .with_max_level(Level::DEBUG)
             .init();
         let (_cont, pool) = setup().await;
+        let db = MyDB::new(pool);
 
         // combine several db method calls in one transaction
         // transactions internal to db methods run inside this transaction
-        let mut trx = pool.begin().await.unwrap();
+        let mut trx = db.pool.begin().await.unwrap();
         trx.as_mut().insert_with_internal_trx(1).await.unwrap();
         trx.as_mut().select(1).await.unwrap();
         trx.as_mut()
@@ -135,15 +138,15 @@ mod tests {
             .unwrap_err();
         trx.as_mut().select(99).await.unwrap_err();
         trx.commit().await.unwrap();
-        pool.select(1).await.unwrap();
+        db.select(1).await.unwrap();
 
         // outer transaction rolls back
-        let mut trx = pool.begin().await.unwrap();
+        let mut trx = db.pool.begin().await.unwrap();
         trx.as_mut().select(2).await.unwrap_err();
         trx.as_mut().insert_with_internal_trx(2).await.unwrap();
         trx.as_mut().select(2).await.unwrap();
         trx.as_mut().select(3).await.unwrap_err();
         trx.rollback().await.unwrap();
-        pool.select(2).await.unwrap_err();
+        db.select(2).await.unwrap_err();
     }
 }

@@ -42,17 +42,17 @@ It is not obvious how we would refactor the DB layer to allow opening a transact
 
 The best solution I've found is to extract the layer into a trait and implement it for `&mut PgConnection` and `&PgPool`.
 
-This allows you to call the DB layer methods on the pool itself, as well as a transaction opened from the pool.
+This allows you to call the DB layer methods on the pool itself, as well as on a transaction opened from it.
 
 ```rust,ignore
 use sqlx::{query, query_as, PgConnection, PgPool};
 
-pub trait MyDB {
+pub trait MyDBTrait {
     async fn get_user(self, id: &str) -> Result<User, sqlx::Error>;
     async fn register_user(self, user: &User) -> Result<(), sqlx::Error>;
 }
 
-impl MyDB for &mut PgConnection {
+impl MyDBTrait for &mut PgConnection {
     pub async fn get_user(self, id: &str) -> Result<User, sqlx::Error> {
         let user = query_as("SELECT * FROM users WHERE id = $1")
             .bind(id)
@@ -71,7 +71,7 @@ impl MyDB for &mut PgConnection {
         Ok(())
     }
 }
-impl MyDB for &PgPool {
+impl MyDBTrait for &PgPool {
     pub async fn get_user(self, id: &str) -> Result<User, sqlx::Error> {
         let mut conn = self.acquire().await?;
         conn.get_user(id).await
@@ -99,8 +99,8 @@ Code which is very similar to the first example, but expands to the solution for
 use sqlx::{query, query_as, Postgres};
 
 #[norrland(Postgres)]
-impl MyDB {
-    async fn get_user(self, id: &str) -> Result<User, sqlx::Error> {
+impl MyDBTrait for MyDB {
+    pub async fn get_user(self, id: &str) -> Result<User, sqlx::Error> {
         let user = query_as("SELECT * FROM users WHERE id = $1")
             .bind(id)
             .fetch_one(self.as_mut())
@@ -108,7 +108,7 @@ impl MyDB {
 
         Ok(user)
     }
-    async fn register_user(self, user: &User) -> Result<(), sqlx::Error> {
+    pub async fn register_user(self, user: &User) -> Result<(), sqlx::Error> {
         query("INSERT INTO users (id, name) VALUES ($1, $2)")
             .bind(user.id)
             .bind(user.name)
