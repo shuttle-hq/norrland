@@ -1,9 +1,10 @@
 [package]
 name = "norrland"
-description = "Utility macro for implementing traits on sqlx types"
-version = "0.0.1"
+description = "Utility macro for implementing traits on SQLx types"
+version = "0.0.2"
 edition = "2021"
 license = "MIT"
+repository = "https://github.com/shuttle-hq/norrland"
 
 [lib]
 proc-macro = true
