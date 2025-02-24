@@ -45,7 +45,7 @@ The best solution I've found is to extract the layer into a trait and implement 
 This allows you to call the DB layer methods on the pool itself, as well as a transaction opened from the pool.
 
 ```rust,ignore
-use sqlx::{PgConnection, PgPool, query, query_as};
+use sqlx::{query, query_as, PgConnection, PgPool};
 
 pub trait MyDB {
     async fn get_user(self, id: &str) -> Result<User, sqlx::Error>;
@@ -90,3 +90,32 @@ The problem we have now is that each method needs to be duplicated three times:
 - Add a wrapper method in the pool impl
 
 This is the reason `norrland` was made, to automate the generation of these three while only writing what looks like one database impl.
+
+## The result
+
+Code which is very similar to the first example, but expands to the solution for you.
+
+```rust,ignore
+use sqlx::{query, query_as, Postgres};
+
+#[norrland(Postgres)]
+impl MyDB {
+    async fn get_user(self, id: &str) -> Result<User, sqlx::Error> {
+        let user = query_as("SELECT * FROM users WHERE id = $1")
+            .bind(id)
+            .fetch_one(self.as_mut())
+            .await?;
+
+        Ok(user)
+    }
+    async fn register_user(self, user: &User) -> Result<(), sqlx::Error> {
+        query("INSERT INTO users (id, name) VALUES ($1, $2)")
+            .bind(user.id)
+            .bind(user.name)
+            .execute(self.as_mut())
+            .await?;
+
+        Ok(())
+    }
+}
+```
