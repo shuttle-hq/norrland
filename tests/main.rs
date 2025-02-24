@@ -5,7 +5,7 @@ use sqlx::{query, Acquire, Postgres};
 
 #[norrland(Postgres)]
 impl MyDB {
-    async fn select(self, a: i32) -> Result<(), sqlx::Error> {
+    pub async fn select(self, a: i32) -> Result<(), sqlx::Error> {
         query("SELECT num FROM numbers WHERE num = $1")
             .bind(a)
             .fetch_one(self.as_mut())
@@ -14,7 +14,7 @@ impl MyDB {
         Ok(())
     }
     #[tracing::instrument(skip_all)]
-    async fn insert_with_internal_trx(self, a: i32) -> Result<(), sqlx::Error> {
+    pub async fn insert_with_internal_trx(self, a: i32) -> Result<(), sqlx::Error> {
         let mut trx = self.begin().await?;
         tracing::info!(value = a, "inserting value");
         query("INSERT INTO numbers VALUES ($1)")
@@ -25,7 +25,7 @@ impl MyDB {
 
         Ok(())
     }
-    async fn insert_with_internal_trx_fails(self, a: i32) -> Result<(), sqlx::Error> {
+    pub async fn insert_with_internal_trx_fails(self, a: i32) -> Result<(), sqlx::Error> {
         let mut trx = self.begin().await?;
         query("INSERT INTO numbers VALUES ($1)")
             .bind(a)
@@ -36,15 +36,15 @@ impl MyDB {
 
         Ok(())
     }
-    async fn noop(self) -> Result<(), sqlx::Error> {
+    pub async fn noop(self) -> Result<(), sqlx::Error> {
         Ok(())
     }
-    async fn multi_args(self, a: i32, b: &mut i32, mut c: String) -> Result<(), sqlx::Error> {
+    pub async fn multi_args(self, a: i32, b: &mut i32, mut c: String) -> Result<(), sqlx::Error> {
         c.push('a');
         let _ = a + *b + c.len() as i32;
         Ok(())
     }
-    async fn destructure(
+    pub async fn destructure(
         self,
         _a1 @ A { b, c }: &A,
         // A { b: d, c: e }: A, // TODO
@@ -54,12 +54,23 @@ impl MyDB {
         Ok(())
     }
     // TODO
-    // async fn wild(self, _: bool) -> Result<(), sqlx::Error> {
+    // pub async fn wild(self, _: bool) -> Result<(), sqlx::Error> {
     //     Ok(())
     // }
-    async fn custom_error(self) -> Result<(), E> {
+    pub async fn custom_error(self) -> Result<(), E> {
         Ok(())
     }
+    pub(crate) async fn public_restricted(self) -> Result<(), sqlx::Error> {
+        Ok(())
+    }
+    // TODO: Allow private functions to move to private side trait MyDBInner and be called from the connection impl
+    // pub async fn public(self) -> Result<(), sqlx::Error> {
+    //     self.non_public().await?;
+    //     Ok(())
+    // }
+    // async fn non_public(self) -> Result<(), sqlx::Error> {
+    //     Ok(())
+    // }
 }
 pub struct A {
     pub b: i32,

@@ -21,15 +21,19 @@ pub fn norrland(args: TokenStream, tokens: TokenStream) -> TokenStream {
         _ => return quote! { compile_error!("Expected an impl block for a named struct"); }.into(),
     };
 
-    // Extract methods
+    // Extract non-private methods for main trait
     let fns = input
         .items
         .iter()
         .filter_map(|item| match item {
-            ImplItem::Fn(method) => Some(method),
+            ImplItem::Fn(method) => match method.vis {
+                Visibility::Inherited => None,
+                _ => Some(method),
+            },
             _ => None,
         })
         .collect::<Vec<_>>();
+    // TODO: extract private fns and place them in a private inner trait
 
     // Generate trait with just the function definitions
     let trait_fns = fns
@@ -61,12 +65,24 @@ pub fn norrland(args: TokenStream, tokens: TokenStream) -> TokenStream {
         items: trait_fns,
     };
 
+    let conn_impl_fns = fns
+        .clone()
+        .into_iter()
+        .map(|func| {
+            let mut modified_func = func.clone();
+            modified_func.vis = Visibility::Inherited; // remove `pub`, etc
+
+            modified_func
+        })
+        .collect::<Vec<_>>();
+
     let pool_impl_fns = fns
         .clone()
         .into_iter()
         .map(|func| {
             let mut modified_func = func.clone();
             modified_func.sig = remove_mut_bindings(func.sig.clone());
+            modified_func.vis = Visibility::Inherited; // remove `pub`, etc
 
             let ident = func.sig.ident.clone();
             let args_to_conn = func
@@ -87,6 +103,7 @@ pub fn norrland(args: TokenStream, tokens: TokenStream) -> TokenStream {
                 let mut conn = self.acquire().await?;
                 conn.#ident(#args_to_conn).await
             };
+
             modified_func
         })
         .collect::<Vec<_>>();
@@ -118,7 +135,7 @@ pub fn norrland(args: TokenStream, tokens: TokenStream) -> TokenStream {
         #trait_def
 
         impl #name for &mut #conn {
-            #(#fns)*
+            #(#conn_impl_fns)*
         }
 
         impl #name for &#pool {
